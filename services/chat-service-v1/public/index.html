@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Friend Chat</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    #chat-container {
+      width: 90%;
+      max-width: 800px;
+      height: 90vh;
+      display: flex;
+      flex-direction: column;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    #messages {
+      list-style-type: none;
+      margin: 0;
+      padding: 20px;
+      flex-grow: 1;
+      overflow-y: auto;
+      border-bottom: 1px solid #ddd;
+    }
+    #messages li {
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      border-radius: 20px;
+      max-width: 75%;
+      word-wrap: break-word;
+    }
+    #messages li.user {
+      background-color: #0084ff;
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+    #messages li.ai {
+      background-color: #e4e6eb;
+      color: #050505;
+      margin-right: auto;
+      border-bottom-left-radius: 4px;
+    }
+    #messages li.system {
+      background-color: #f5f5f5;
+      color: #65676b;
+      text-align: center;
+      width: 100%;
+      max-width: 100%;
+      font-size: 0.9em;
+      font-weight: 500;
+    }
+    #messages li strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #007bff;
+    }
+    #messages li.ai strong {
+      color: #4b0082; /* Indigo for AI */
+    }
+    #form {
+      display: flex;
+      padding: 20px;
+      background-color: #ffffff;
+    }
+    #name {
+      border: 2px solid #ddd;
+      padding: 10px;
+      border-radius: 20px;
+      margin-right: 10px;
+      width: 120px;
+    }
+    #input {
+      border: 2px solid #ddd;
+      padding: 10px;
+      flex-grow: 1;
+      border-radius: 20px;
+      margin-right: 10px;
+    }
+    #form button {
+      background: #0084ff;
+      border: none;
+      padding: 10px 20px;
+      color: white;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #form button:hover {
+      background: #0073e6;
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-container">
+    <ul id="messages"></ul>
+    <form id="form" action="">
+      <input id="name" autocomplete="off" placeholder="Your Name" required />
+      <input id="input" autocomplete="off" placeholder="Type a message..." required />
+      <button>Send</button>
+    </form>
+  </div>
+
+  <!-- Import the Socket.IO client library -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const socket = io();
+
+      const form = document.getElementById('form');
+      const nameInput = document.getElementById('name');
+      const input = document.getElementById('input');
+      const messages = document.getElementById('messages');
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (input.value && nameInput.value) {
+          const message = {
+            user: nameInput.value,
+            text: input.value
+          };
+          // Emit the message to the server
+          socket.emit('chat message', message);
+          
+          // Add the user's message to their own screen
+          addMessage(message, 'user');
+          
+          input.value = '';
+        }
+      });
+
+      socket.on('chat message', (msg) => {
+        addMessage(msg, 'user');
+      });
+
+      // Listen for AI messages
+      socket.on('ai message', (msg) => {
+        addMessage(msg, 'ai');
+      });
+
+      // Listen for system messages
+      socket.on('system message', (msg) => {
+        addMessage({ user: 'System', text: msg }, 'system');
+      });
+
+      function addMessage(msg, type) {
+        const item = document.createElement('li');
+        
+        if (type === 'ai') {
+          item.classList.add('ai');
+          item.innerHTML = `<strong>${msg.user}</strong>${msg.text}`;
+        } else if (type === 'system') {
+          item.classList.add('system');
+          item.textContent = msg.text; // No user for system messages
+        } else {
+          item.classList.add('user');
+          item.innerHTML = `<strong>${msg.user}</strong>${msg.text}`;
+        }
+        
+        messages.appendChild(item);
+        messages.scrollTop = messages.scrollHeight; // Auto-scroll
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "chat-service-v1",
+  "version": "1.0.0",
+  "description": "The v1 prototype of the Chat Service.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "dotenv": "^16.4.5"
+  }
+}
