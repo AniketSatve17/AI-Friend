@@ -1,44 +1,84 @@
-/*
-* All your Socket.IO logic from the old server.js
-* now lives here, nice and clean.
-*/
+import { Server } from 'socket.io';
+import { getAIChatResponse } from '../lib/aiService.js';
+import config from '../config/index.js';
 
-export default (io) => {
-  // This is the *exact same logic* from your old server.js
-  io.on('connection', (socket) => {
-    console.log('A user connected! Socket ID:', socket.id);
+let chatHistory = [];
+let aiTimer = null;
 
-    // Send a welcome message to the user who just connected
-    socket.emit('chatMessage', {
-      user: 'System',
-      text: 'Welcome to the chat!'
-    });
-
-    // Broadcast to *everyone else* that a new user has joined
-    socket.broadcast.emit('chatMessage', {
-      user: 'System',
-      text: 'A new user has joined the chat.'
-    });
-
-    // Listen for 'disconnect' event (user closes the tab)
-    socket.on('disconnect', () => {
-      console.log('A user disconnected. Socket ID:', socket.id);
-      io.emit('chatMessage', {
-        user: 'System',
-        text: 'A user has left the chat.'
-      });
-    });
-
-    // Listen for a 'chatMessage' event from a user
-    socket.on('chatMessage', (msg) => {
-      // We received a message (msg).
-      // Now, we broadcast it to *everyone* (including the sender)
-      console.log('Message received:', msg);
-      io.emit('chatMessage', msg);
-    });
-
-    // We will add more logic here later:
-    // socket.on('joinRoom', ...);
-    // socket.on('aiHelpRequest', ...);
+export default (server) => {
+  const io = new Server(server, {
+    cors: {
+      origin: '*', // Allow all origins for this demo
+    },
   });
+
+  io.on('connection', (socket) => {
+    console.log('a user connected');
+    socket.emit('system message', 'You are connected! Say hi to start the chat.');
+
+    const triggerAI = async () => {
+      console.log('AI timer expired, getting response...');
+      
+      try {
+        const aiResponse = await getAIChatResponse(chatHistory);
+        
+        if (aiResponse) {
+          const aiMessage = {
+            user: 'Sparky (AI Friend)',
+            text: aiResponse,
+            isAI: true,
+          };
+          chatHistory.push(aiMessage);
+          if (chatHistory.length > 10) chatHistory.shift(); 
+          io.emit('ai message', aiMessage);
+        } else {
+          // This case is now handled by an error in aiService, but we keep it as a fallback
+          console.warn("AI response was null or empty.");
+          io.emit('system message', 'AI Friend is thinking... but had nothing to say.');
+        }
+
+      } catch (error) {
+        // --- *** THIS IS THE NEW ERROR HANDLING *** ---
+        // This 'catch' block will now receive the errors from aiService
+        console.error("AI Service Error:", error.message);
+        // Send a clean error message to the chat UI
+        let userErrorMessage = `AI Friend Error: ${error.message}`;
+
+        // Check for the specific 'fieldViolations' error from your log
+        if (error.errorDetails && error.errorDetails[0] && error.errorDetails[0].fieldViolations) {
+          userErrorMessage = `AI Friend Error: The API rejected the system prompt. (Code: 400)`;
+        } else if (error.message.includes("API key not valid")) {
+          userErrorMessage = "AI Friend Error: The API key is invalid or not set correctly.";
+        } else if (error.message.includes("API Key is missing")) {
+          userErrorMessage = "AI Friend Error: The API Key is missing. The AI is disabled.";
+        }
+        
+        io.emit('system message', userErrorMessage);
+        // --- *** END OF NEW ERROR HANDLING *** ---
+      }
+    };
+
+    socket.on('chat message', (msg) => {
+      console.log('message: ' + msg.text);
+
+      if (aiTimer) clearTimeout(aiTimer);
+      aiTimer = setTimeout(triggerAI, 10000); // 10 seconds
+
+      chatHistory.push({
+        user: msg.user,
+        text: msg.text,
+        isAI: false,
+      });
+      if (chatHistory.length > 10) chatHistory.shift(); 
+
+      socket.broadcast.emit('chat message', msg);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('user disconnected');
+      if (aiTimer) clearTimeout(aiTimer);
+    });
+  });
+
+  return io;
 };
