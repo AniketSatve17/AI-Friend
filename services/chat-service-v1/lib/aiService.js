@@ -1,61 +1,38 @@
-import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/generative-ai";
+import { OpenAI } from "openai"; // We still use the OpenAI library!
 import config from '../config/index.js';
 
 // --- Initialize variables ---
-let genAI;
-let model;
-const API_KEY = config.geminiApiKey; // Get the key
+let groq; // Let's rename the client for clarity
+const API_KEY = config.groqApiKey; // <-- NEW: Get the Groq key
 
-if (!API_KEY || API_KEY === "YOUR_API_KEY_GOES_HERE") {
+if (!API_KEY || API_KEY === "PASTE_YOUR_NEW_GROQ_KEY_HERE") {
   console.warn(`
     ##############################################################
-    ⚠️  WARNING: GEMINI_API_KEY is not set in your .env or config file.
+    ⚠️  WARNING: GROQ_API_KEY is not set in your config file.
     The AI Friend will not respond.
-    Please get a key from https://aistudio.google.com/app/apikey
-    and add it to your config/index.js file.
     ##############################################################
   `);
 } else {
   // --- THIS IS THE FIX ---
-  // We are forcing the API client to use the stable 'v1' version,
-  // not the 'v1beta' version that is failing in your region.
-  genAI = new GoogleGenerativeAI(API_KEY, { apiVersion: 'v1' }); 
-  // --- END OF FIX ---
-
-  model = genAI.getGenerativeModel({
-    // We go back to 'gemini-pro', which is the standard model on 'v1'
-    model: "gemini-pro", 
+  // We initialize the OpenAI client, but point it to Groq's servers
+  groq = new OpenAI({
+    apiKey: API_KEY,
+    baseURL: "https://api.groq.com/openai/v1", // <-- This is the magic line
   });
+  // --- END OF FIX ---
 }
 
-
-// --- Configure Safety Settings ---
-const safetySettings = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  },
-];
-
 // --- Define the AI's Personality (System Prompt) ---
-// We must remove the system prompt, as 'v1' API does not support it
-// in the same way. We will add it to the chat history instead.
+const systemPrompt = `You are the "AI Friend" in a group chat. Your name is 'Sparky'.
+Your personality is witty, very curious, slightly mischievous, and friendly.
+Your goal is to prevent awkward silences and make the chat more fun.
+- KEEP YOUR REPLIES VERY SHORT. One or two sentences MAX.
+- Ask fun, open-ended questions.
+- Make funny observations.
+- Use emojis.
+- Never identify as an AI unless you are explicitly asked.
+- Examples: "Alright, spicy take: pineapple on pizza... thoughts? 🍍", "Ooh, that's interesting. What's a song you have on repeat right now?", "If you two could teleport anywhere right now, where would you go?"
+`;
 
 /**
  * Generates an AI chat response based on the conversation history.
@@ -64,58 +41,46 @@ const safetySettings = [
  */
 export const getAIChatResponse = async (chatHistory) => {
   
-  if (!model) {
+  if (!groq) { // <-- NEW: Check if groq is initialized
     console.log("AI is disabled. Skipping AI response.");
-    throw new Error("AI Friend is disabled: API Key is missing or not configured in config/index.js.");
+    throw new Error("AI Friend is disabled: API Key is missing or not configured.");
   }
 
   try {
-    // --- NEW FIX for 'v1' API ---
-    // The 'v1' API does not use 'systemInstruction'. We must put the prompt
-    // at the beginning of the chat history.
-    const systemPrompt = `You are Sparky, a witty, curious, and friendly AI chatbot. Your goal is to keep conversations fun. Keep your replies very short (one or two sentences) and use emojis. Ask fun, open-ended questions.`;
-
-    const formattedHistory = [
-      // Start with the system prompt
-      { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Got it! I'll be a fun and friendly chat companion. 😊" }] },
-      
-      // Then add the rest of the chat history
+    // --- NEW: Format history for OpenAI/Groq ---
+    const messages = [
+      { role: "system", content: systemPrompt },
       ...chatHistory.map(msg => ({
-        role: msg.isAI ? "model" : "user",
-        parts: [{ text: `${msg.user}: ${msg.text}` }]
+        role: msg.isAI ? "assistant" : "user",
+        content: `${msg.user}: ${msg.text}`
       }))
     ];
     // --- END OF NEW FIX ---
 
-
-    // Create a new chat session with the model
-    const chat = model.startChat({
-      generationConfig: {
-        maxOutputTokens: 100,
-        temperature: 0.9,
-      },
-      safetySettings,
-      history: formattedHistory, // Pass our new history
-      // We removed 'systemInstruction'
+    // --- NEW: Call the Groq API ---
+    const completion = await groq.chat.completions.create({
+      messages: messages,
+      // --- THIS IS THE FIX ---
+      // We are using the new, active model
+      model: "llama-3.1-8b-instant", 
+      // --- END OF FIX ---
+      max_tokens: 60,
+      temperature: 0.9,
     });
+    // --- END OF NEW FIX ---
 
-    // Send a final prompt to get a response
-    const result = await chat.sendMessage("... (keep the conversation going!)");
-    const response = result.response;
+    const aiText = completion.choices[0].message.content;
     
-    if (response.text()) {
-      let aiText = response.text();
-      aiText = aiText.replace("Sparky:", "").trim();
-      return aiText;
+    if (aiText) {
+      return aiText.replace("Sparky:", "").trim();
     } else {
       console.warn("AI response was blocked or empty.");
       throw new Error("AI response was blocked by safety settings.");
     }
 
   } catch (error) {
-    console.error("Error calling Gemini API:", error);
-    // Re-throw the error so socket.js can catch it and show it to the user
+    console.error("Error calling Groq API:", error);
+    // Re-throw the error so socket.js can catch it
     throw error;
   }
 };

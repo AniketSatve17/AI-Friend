@@ -1,23 +1,20 @@
-// We are no longer trying to read the .env file for the API key.
+// We are hard-coding the variables to force the app to work.
 
-// We try to get the PORT from the .env file (which is also failing,
-// so we default to '3000')
-const PORT = process.env.PORT || '3000';
+// 1. Set the port directly.
+const PORT = 3000;
 
-// --- THIS IS THE FIX ---
-// We are "hard-coding" the API key.
-// Paste your key directly between the quotes.
-const GEMINI_API_KEY = "AIzaSyCL1Uv8vZo9am_UaBXV2D9fLulPiXxWSUA"; // <-- YOUR KEY GOES HERE
+// 2. --- PASTE YOUR **NEW GROQ** API KEY HERE ---
+// This is the key you just got from Groq (starts with 'gsk_...')
+const GROQ_API_KEY = "PASTE_YOUR_NEW_GROQ_KEY_HERE";
 // --- END OF FIX ---
 
 
-// We will do a simple check.
-// This checks if the key is *still* the placeholder
-if (GEMINI_API_KEY === "YOUR_API_KEY_GOES_HERE" || !GEMINI_API_KEY) {
+// 3. We will do a simple check.
+if (GROQ_API_KEY === "PASTE_YOUR_NEW_GROQ_KEY_HERE" || !GROQ_API_KEY) {
   // We will just warn the user, but not crash
   console.warn(`
     ##############################################################
-    ⚠️  WARNING: GEMINI_API_KEY is not set in config/index.js!
+    ⚠️  WARNING: GROQ_API_KEY is not set in config/index.js!
     The AI Friend will not respond.
     Please paste your key directly into the code on line 12.
     ##############################################################
@@ -26,10 +23,10 @@ if (GEMINI_API_KEY === "YOUR_API_KEY_GOES_HERE" || !GEMINI_API_KEY) {
 
 export default {
   // Application port
-  port: parseInt(PORT, 10),
+  port: PORT,
 
   // API keys
-  geminiApiKey: GEMINI_API_KEY, // Use the hard-coded variable
+  groqApiKey: GROQ_API_KEY, // Use the new Groq key
 
   // Database connection string
   // e.g., databaseURL: process.env.DATABASE_URL,
