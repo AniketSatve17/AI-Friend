@@ -15,7 +15,7 @@ async function startServer() {
   server.listen(PORT, () => {
     console.log(`
       ################################################
-      🛡️  Sparky Server Listening on Port: ${PORT} 🛡️
+      🛡️  Sparky Server Listening on Port: {PORT} 🛡️
       ################################################
     `);
   });

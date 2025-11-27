@@ -164,7 +164,7 @@
     function enableReply(user, text) {
         currentReply = { user, text };
         replyBar.style.display = 'flex';
-        replyText.innerHTML = `Replying to <span>@${user}</span>: "${text.substring(0, 30)}..."`;
+        replyText.innerHTML = `Replying to <span>@{user}</span>: "{text.substring(0, 30)}..."`;
         document.getElementById('msg-input').focus();
     }
 
@@ -192,21 +192,21 @@
 
         // Tag Highlighting Regex
         let formattedText = msg.text || msg.content || ""; // Handle both DB/Live formats
-        formattedText = formattedText.replace(/(@\w+)/g, '<span class="tag">$1</span>');
+        formattedText = formattedText.replace(/(@\w+)/g, '<span class="tag">1</span>');
 
         // Build Reply Block if it exists
         let replyBlock = '';
         if (msg.replyTo) {
             replyBlock = `<div class="reply-context">
-                ↳ <b>${msg.replyTo.user}</b>: ${msg.replyTo.text}
+                ↳ <b>{msg.replyTo.user}</b>: {msg.replyTo.text}
             </div>`;
         }
 
         div.innerHTML = `
-            <span class="user-label">${isMe ? 'root' : msg.user}</span>
-            <div class="bubble" onclick="enableReply('${msg.user}', '${formattedText.replace(/'/g, "\\'")}')">
-                ${replyBlock}
-                ${formattedText}
+            <span class="user-label">{isMe ? 'root' : msg.user}</span>
+            <div class="bubble" onclick="enableReply('{msg.user}', '{formattedText.replace(/'/g, "\\'")}')">
+                {replyBlock}
+                {formattedText}
             </div>
         `;
         
