@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fsociety Chat v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --chat-bg: #111;
+            --accent: #ff3333;
+            --text-color: #e0e0e0;
+            --highlight: #f0db4f; /* Yellow for tags */
+            --reply-bg: #222;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--chat-bg);
+            border: 1px solid #333;
+            height: 100%;
+            position: relative;
+        }
+
+        header {
+            padding: 15px;
+            background-color: #000;
+            border-bottom: 1px solid var(--accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand { font-weight: bold; color: var(--accent); letter-spacing: 2px; }
+        
+        #username-input {
+            background: #222; border: 1px solid #444; color: var(--accent);
+            padding: 5px 10px; border-radius: 4px; text-align: center;
+        }
+
+        #chat-window {
+            flex: 1; padding: 20px; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+
+        .message-row { display: flex; flex-direction: column; max-width: 80%; }
+        .message-row.me { align-self: flex-end; align-items: flex-end; }
+        .message-row.other { align-self: flex-start; align-items: flex-start; }
+
+        .user-label { font-size: 0.7rem; opacity: 0.7; margin-bottom: 2px; }
+
+        .bubble {
+            padding: 10px 15px; border-radius: 4px; font-size: 0.95rem;
+            line-height: 1.4; border: 1px solid #333; position: relative;
+            cursor: pointer; transition: background 0.2s;
+        }
+        
+        /* Hover effect to show you can reply */
+        .bubble:hover { border-color: #666; }
+
+        .me .bubble { background-color: #4a0000; border-color: var(--accent); color: white; }
+        .other .bubble { background-color: #2b2b2b; border-left: 3px solid #666; }
+        .other.sparky .bubble { border-left: 3px solid #ff9800; background-color: #1a1a1a; }
+
+        /* Reply Block inside a message */
+        .reply-context {
+            font-size: 0.75rem; color: #aaa; background: rgba(0,0,0,0.3);
+            border-left: 2px solid var(--accent); padding: 4px 8px;
+            margin-bottom: 6px; border-radius: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .tag { color: var(--highlight); font-weight: bold; }
+
+        /* Reply Preview Bar (above input) */
+        #reply-bar {
+            background: #222; padding: 8px 15px; font-size: 0.8rem;
+            border-top: 1px solid var(--accent); display: none;
+            justify-content: space-between; align-items: center;
+        }
+        #reply-bar span { color: var(--highlight); }
+        #reply-bar button { padding: 2px 8px; font-size: 0.7rem; margin-left: 10px; }
+
+        form {
+            padding: 15px; background-color: #000; border-top: 1px solid #333;
+            display: flex; gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1; padding: 12px; background-color: #111;
+            border: 1px solid #333; color: white; outline: none;
+        }
+        button[type="submit"] {
+            padding: 10px 25px; background-color: var(--accent); color: black;
+            font-weight: bold; border: none; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <header>
+        <div class="brand">Fsociety_v2.0</div>
+        <div>
+            <input type="text" id="username-input" value="buni" />
+            <span style="font-size: 12px; color: green;">● Encrypted</span>
+        </div>
+    </header>
+    
+    <div id="chat-window"></div>
+
+    <div id="reply-bar">
+        <div id="reply-text">Replying to...</div>
+        <button onclick="cancelReply()">X</button>
+    </div>
+
+    <form id="chat-form">
+        <input type="text" id="msg-input" placeholder="Click any message to reply..." autocomplete="off" />
+        <button type="submit">SEND</button>
+    </form>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const chatWindow = document.getElementById('chat-window');
+    const usernameInput = document.getElementById('username-input');
+    const replyBar = document.getElementById('reply-bar');
+    const replyText = document.getElementById('reply-text');
+    
+    // State for replying
+    let currentReply = null; // { user: 'name', text: 'snippet' }
+
+    // 1. Send Message
+    document.getElementById('chat-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('msg-input');
+        if (input.value) {
+            const msg = { 
+                user: usernameInput.value || "Anonymous", 
+                text: input.value,
+                replyTo: currentReply 
+            };
+            socket.emit('chat message', msg);
+            input.value = '';
+            cancelReply(); // Clear reply mode
+        }
+    });
+
+    // 2. Click to Reply Logic
+    function enableReply(user, text) {
+        currentReply = { user, text };
+        replyBar.style.display = 'flex';
+        replyText.innerHTML = `Replying to <span>@${user}</span>: "${text.substring(0, 30)}..."`;
+        document.getElementById('msg-input').focus();
+    }
+
+    function cancelReply() {
+        currentReply = null;
+        replyBar.style.display = 'none';
+    }
+
+    // 3. Receive & Render
+    socket.on('chat message', (msg) => addMessageToUI(msg));
+    socket.on('chat history', (history) => {
+        chatWindow.innerHTML = ''; 
+        history.forEach(addMessageToUI);
+    });
+
+    function addMessageToUI(msg) {
+        const div = document.createElement('div');
+        const myName = usernameInput.value;
+        const isMe = msg.user === myName;
+        const isSparky = msg.user === 'Sparky';
+
+        div.classList.add('message-row');
+        div.classList.add(isMe ? 'me' : 'other');
+        if (isSparky) div.classList.add('sparky');
+
+        // Tag Highlighting Regex
+        let formattedText = msg.text || msg.content || ""; // Handle both DB/Live formats
+        formattedText = formattedText.replace(/(@\w+)/g, '<span class="tag">$1</span>');
+
+        // Build Reply Block if it exists
+        let replyBlock = '';
+        if (msg.replyTo) {
+            replyBlock = `<div class="reply-context">
+                ↳ <b>${msg.replyTo.user}</b>: ${msg.replyTo.text}
+            </div>`;
+        }
+
+        div.innerHTML = `
+            <span class="user-label">${isMe ? 'root' : msg.user}</span>
+            <div class="bubble" onclick="enableReply('${msg.user}', '${formattedText.replace(/'/g, "\\'")}')">
+                ${replyBlock}
+                ${formattedText}
+            </div>
+        `;
+        
+        chatWindow.appendChild(div);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+</script>
+</body>
+</html>
